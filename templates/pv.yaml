@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "php-app.fullname" . }}
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: {{ .Values.persistance.size }}
+  csi:
+    driver: cephfs.csi.ceph.com
+    nodeStageSecretRef:
+      name: ceph-csi-secret
+      namespace: ceph-csi-cephfs    
+    volumeAttributes:
+      "clusterID": ""
+      "fsName": ""
+      "staticVolume": "true"
+      "rootPath": /volumes/app/{{ required "A valid persistance.path entry required!"  .Values.persistance.path }}
+    volumeHandle: {{ include "php-app.fullname" . }}
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+  storageClassName: csi-cephfs-sc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "php-app.fullname" . }}
+  annotations:
+  {{- if eq .Values.persistance.resourcePolicy "keep" }}
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.persistance.size }}
+  volumeMode: Filesystem
+  volumeName: {{ include "php-app.fullname" . }}
+  storageClassName: csi-cephfs-sc

@@ -1,0 +1,18 @@
+{{- range .Values.persistance.additional }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "php-app.fullname" $ }}-{{ .name }}
+  annotations:
+  {{- if eq .resourcePolicy "keep" }}
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+  - {{ .accessMode }}
+  resources:
+    requests:
+      storage: {{ .size }}
+  storageClassName: {{ .storageClass }}
+---
+{{- end }}

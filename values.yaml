@@ -1,0 +1,49 @@
+# Default values for php-app.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  php:
+    repository: harbor.example.ru/apps/php
+    tag: 7.2-standard
+    pullPolicy: Always
+    apm: true
+  nginx:
+    repository: harbor.example.ru/apps/nginx
+    tag: 1.23-php
+    pullPolicy: Always
+#    probe:
+#      path: /
+#      host: example.example.ru
+
+metrics:
+  php:
+    enable: true
+    image: harbor.example.ru/library/php-exporter:2.2
+  nginx: 
+    enable: true
+    image: harbor.example.ru/library/nginx-exporter:0.11
+
+persistance:
+  size: 5Gi
+  path: example
+  resourcePolicy: "keep"
+#  additional:
+#    - name: data
+#      mountPath: /mnt
+#      accessMode: ReadWriteMany
+#      size: 5Gi
+#      storageClass: nfs-sc
+#      resourcePolicy: "keep"
+
+hosts:
+  - name: example.example.ru
+    timeout: 3600
+    root: "/"
+    subPath: true
+    class: nginx
+    tls:
+      enable: false
+      secretName: tls

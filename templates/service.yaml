@@ -1,0 +1,29 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "php-app.fullname" . }}
+  {{- if or .Values.metrics.php.enable .Values.metrics.nginx.enable }}
+  labels:
+     prometheus.io/scrape: 'true'
+  {{- end }}
+spec:
+  selector:
+    name: {{ include "php-app.fullname" . }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http
+    {{- if eq .Values.metrics.php.enable true }}
+    - name: php-metrics
+      protocol: TCP
+      port: 9253
+      targetPort: 9253
+    {{- end }}
+    {{- if eq .Values.metrics.nginx.enable true }}
+    - name: nginx-metrics
+      protocol: TCP
+      port: 9113
+      targetPort: 9113
+    {{- end }}
+  type: ClusterIP

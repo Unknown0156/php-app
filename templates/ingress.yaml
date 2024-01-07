@@ -1,0 +1,41 @@
+{{- range .Values.hosts }}
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ required "A valid hosts.name entry required!" .name }}
+  labels:
+    app: {{ include "php-app.fullname" $ }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    {{- if .timeout }}
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "{{ .timeout }}"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "{{ .timeout }}"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "{{ .timeout }}"
+    {{- end }}
+    {{- if and .tls.enable (not .tls.secretName)}}
+    cert-manager.io/cluster-issuer: letsencrypt
+    cert-manager.io/renew-before: 360h
+    {{- end }}
+spec:
+  ingressClassName: {{ default "nginx" .class }}
+  {{- if .tls.enable}}
+  tls:
+  - hosts:
+    - {{ required "A valid hosts.name entry required!" .name }}
+    secretName: {{ default (printf "%s-%s" .name "tls-secret") .tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ required "A valid hosts.name entry required!" .name }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "php-app.fullname" $ }}
+                port:
+                  number: 80
+---
+{{- end }}

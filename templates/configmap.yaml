@@ -1,0 +1,35 @@
+{{- if .Values.hosts }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "php-app.fullname" . }}
+data:
+  {{ include "php-app.fullname" . }}.conf: |-
+  {{- range .Values.hosts }}
+    server {
+      listen 80;
+      server_name {{ required "A valid hosts.name entry required!" .name }};
+      root  /var/www{{ required "A valid hosts.root entry required!" .root }};
+
+      client_max_body_size 128m;
+      index index.php;
+      try_files $uri /index.php$is_args$args;
+      {{- if .subPath }}
+      location / {
+        index index.html index.php;
+        try_files $uri $uri/index.html $uri/index.php$is_args$args;
+      }
+      {{- end }}
+      location ~ ^/assets/.*\.php$ {
+         deny all;
+      }
+
+      location ~ \.php$ {
+         include        fastcgi_params;
+         fastcgi_index  index.php;
+         fastcgi_param  SCRIPT_FILENAME $document_root$fastcgi_script_name;
+         fastcgi_pass   127.0.0.1:9000;
+       }
+    }
+  {{- end }}
+{{- end }}

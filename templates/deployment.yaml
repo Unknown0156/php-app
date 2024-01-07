@@ -1,0 +1,150 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ include "php-app.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      name: {{ include "php-app.fullname" . }}
+  template:
+    metadata:
+      annotations:
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        name: {{ include "php-app.fullname" . }}
+    spec:
+      volumes:
+        - name: code
+          persistentVolumeClaim:
+            claimName: {{ include "php-app.fullname" . }}
+        {{- if .Values.hosts }}
+        - name: config
+          configMap:
+            name: {{ include "php-app.fullname" . }}
+            defaultMode: 256
+            optional: false
+        {{- end }}
+        {{- range .Values.persistance.additional }}
+        - name: {{ .name }}
+          persistentVolumeClaim:
+            claimName: {{ include "php-app.fullname" $ }}-{{ .name }}
+        {{- end }}
+      containers:
+        - name: php
+          image: {{ .Values.image.php.repository }}:{{ .Values.image.php.tag }}
+          {{- if eq .Values.image.php.apm true }}
+          env: 
+          - name: ELASTIC_APM_SERVICE_NAME
+            value: {{ include "php-app.fullname" . }}
+          {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 400m
+              memory: 200Mi
+          volumeMounts:
+            - name: code
+              mountPath: /var/www
+            {{- range .Values.persistance.additional }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+          securityContext:
+            capabilities:
+             add:
+               - SYS_PTRACE
+          imagePullPolicy: {{ .Values.image.php.pullPolicy }}
+        {{- if eq .Values.metrics.php.enable true }}
+        - name: php-exporter
+          image: {{ .Values.metrics.php.image }}
+          env:
+          - name: PHP_FPM_WEB_LISTEN_ADDRESS
+            value: :9253
+          - name: PHP_FPM_WEB_TELEMETRY_PATH
+            value: /metrics
+          - name: PHP_FPM_SCRAPE_URI
+            value: tcp://127.0.0.1:9000/php_status
+          - name: PHP_FPM_FIX_PROCESS_COUNT
+            value: "false"
+          - name: PHP_FPM_LOG_LEVEL
+            value: error
+          resources:
+            requests:
+              cpu: 25m
+              memory: 25Mi
+          ports:
+          - containerPort: 9253
+        {{- end }}
+        - name: nginx
+          image: {{ .Values.image.nginx.repository }}:{{ .Values.image.nginx.tag }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if .Values.image.nginx.probe }}
+          readinessProbe:
+            httpGet:
+              path: {{ required "A valid image.nginx.probe.path entry required!" .Values.image.nginx.probe.path }}
+              port: 80
+              httpHeaders:
+              - name: Host
+                value: {{ required "A valid image.nginx.probe.host entry required!" .Values.image.nginx.probe.host }}
+            initialDelaySeconds: 10
+            periodSeconds: 60
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: {{ required "A valid image.nginx.probe.path entry required!" .Values.image.nginx.probe.path }}
+              port: 80
+              httpHeaders:
+              - name: Host
+                value: {{ required "A valid image.nginx.probe.host entry required!" .Values.image.nginx.probe.host }}
+            initialDelaySeconds: 15
+            periodSeconds: 120
+            timeoutSeconds: 5
+          {{- end }}  
+          resources:
+            requests:
+              cpu: 25m
+              memory: 50Mi
+          volumeMounts:
+            - name: code
+              mountPath: /var/www
+            {{- range .Values.persistance.additional }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- if .Values.hosts }}
+            - name: config
+              readOnly: true
+              mountPath: /etc/nginx/conf.d/{{ include "php-app.fullname" . }}.conf
+              subPath: {{ include "php-app.fullname" . }}.conf
+            {{- end }}
+          imagePullPolicy: {{ .Values.image.nginx.pullPolicy }}
+        {{- if eq .Values.metrics.nginx.enable true }}
+        - name: nginx-exporter
+          image: {{ .Values.metrics.nginx.image }}
+          args:
+            - '-nginx.scrape-uri=http://localhost/nginx_status'
+          resources:
+            requests:
+              cpu: 25m
+              memory: 25Mi
+          ports:
+            - containerPort: 9113
+        {{- end }}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 5
+      dnsPolicy: ClusterFirst
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 1
+  revisionHistoryLimit: 1
+  progressDeadlineSeconds: 600

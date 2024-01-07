@@ -1,0 +1,11 @@
+before_script:
+  - mkdir -p ~/.config/helm/registry
+  - echo $DOCKER_AUTH_CONFIG > ~/.config/helm/registry/config.json
+
+php-app:
+  stage: deploy
+  image: harbor.example.ru/iac/helm:3.10.2
+  script:
+    - helm package .
+    - helm push php-app-1.5.0.tgz oci://harbor.example.ru/apps
+  when: manual

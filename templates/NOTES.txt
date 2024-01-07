@@ -1,0 +1,5 @@
+Applications:
+{{- range .Values.hosts }}
+  URL: http{{- if eq .tls.enable true }}s{{ end }}://{{ .name }}
+  Volume: /volumes/app/{{ $.Values.persistance.path }}{{ .root }}
+{{- end }}
